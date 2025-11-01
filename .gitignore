@@ -1,0 +1,5 @@
+# Modules Node
+/node_modules
+
+# Fichier de configuration sécurisé
+.env
