@@ -17,6 +17,10 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 // Définition des commandes slash
 const commands = [
     {
+        name: 'help',
+        description: 'Affiche la liste de toutes les commandes disponibles.',
+    },
+    {
         name: 'server-statut',
         description: 'Affiche le statut actuel du serveur Minecraft Horizon SMP.',
     },
@@ -56,7 +60,7 @@ client.on('ready', async () => {
             { body: commands },
         );
 
-        console.log('Commandes slash enregistrées avec succès (3).');
+        console.log('Commandes slash enregistrées avec succès (4).');
     } catch (error) {
         console.error('Erreur lors de l\'enregistrement des commandes :', error);
     }
@@ -69,6 +73,10 @@ client.on('interactionCreate', async interaction => {
     const { commandName } = interaction;
 
     switch (commandName) {
+        case 'help':
+            await handleHelp(interaction);
+            break;
+
         case 'who-am-i':
             await handleWhoAmI(interaction);
             break;
@@ -84,6 +92,24 @@ client.on('interactionCreate', async interaction => {
 });
 
 // --- Commandes ---
+
+async function handleHelp(interaction) {
+    const embed = new EmbedBuilder()
+        .setColor(0xFFA500) // Orange pour le message d'aide
+        .setTitle('📚 Guide des Commandes Horizon Bot')
+        .setDescription('Je suis là pour vous donner des informations rapides sur le serveur Horizon SMP !')
+        .setThumbnail(client.user.displayAvatarURL())
+        .addFields(
+            { name: '/help', value: 'Affiche cette liste de commandes.', inline: false },
+            { name: '/server-statut', value: 'Vérifie en temps réel si le serveur Minecraft est en ligne, le nombre de joueurs, la version et le MOTD.', inline: false },
+            { name: '/ip', value: 'Affiche l\'adresse IP et la version requise pour rejoindre le serveur.', inline: false },
+            { name: '/who-am-i', value: 'Affiche les informations de base sur ce bot.', inline: false }
+        )
+        .setFooter({ text: 'Pour toute autre question, contactez un administrateur.' });
+
+    await interaction.reply({ embeds: [embed] });
+}
+
 
 async function handleWhoAmI(interaction) {
     const embed = new EmbedBuilder()
