@@ -1,7 +1,7 @@
-// Importation des modules nécessaires
-const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('discord.js');
-const util = require('minecraft-server-util');
-const http = require('http'); // Nécessaire pour maintenir le service actif sur Render
+// Importation des modules nécessaires (Syntaxe ES Module)
+import { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } from 'discord.js';
+import util from 'minecraft-server-util';
+import http from 'http'; // Nécessaire pour maintenir le service actif sur Render
 
 // --- Configuration ---
 // Le jeton est chargé via les variables d'environnement (process.env.DISCORD_TOKEN)
