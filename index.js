@@ -1,169 +1,165 @@
-// Importations nécessaires pour Discord.js et la consultation du serveur Minecraft
-import { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder } from 'discord.js';
-import { status } from 'minecraft-server-util';
-import 'dotenv/config'; // Pour charger les variables d'environnement du fichier .env
+// Importation des modules nécessaires
+const { Client, GatewayIntentBits, REST, Routes, EmbedBuilder } = require('discord.js');
+const util = require('minecraft-server-util');
+const http = require('http'); // Nécessaire pour maintenir le service actif sur Render
 
-// --- CONFIGURATION DU BOT ET DU SERVEUR MINECRAFT ---
+// --- Configuration ---
+// Le jeton est chargé via les variables d'environnement (process.env.DISCORD_TOKEN)
+// Le port est également chargé via l'environnement (pour Render)
+const PORT = process.env.PORT || 3000;
 
-// Récupération du jeton du bot depuis les variables d'environnement (nécessite un fichier .env)
-const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
-// ID du serveur (Guild ID) où les commandes seront enregistrées (facultatif, pour un enregistrement plus rapide)
-const GUILD_ID = process.env.GUILD_ID; // Laissez vide ou commentez si vous souhaitez enregistrer globalement
+const SERVER_IP = 'horizonsmp.progamer.me';
+const SERVER_VERSION = '1.21.10';
 
-// Informations de votre serveur Minecraft
-const MINECRAFT_IP = 'horizonsmp.progamer.me';
-const MINECRAFT_PORT = 25565; // Port standard de Minecraft
-const MINECRAFT_VERSION = '1.21.10';
+// Configuration du client Discord
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-// Initialisation du client Discord avec les intentions nécessaires
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds, // Nécessaire pour les interactions et les commandes slash
-    ]
+// Définition des commandes slash
+const commands = [
+    {
+        name: 'server-statut',
+        description: 'Affiche le statut actuel du serveur Minecraft Horizon SMP.',
+    },
+    {
+        name: 'ip',
+        description: 'Affiche l\'adresse IP et la version du serveur Minecraft.',
+    },
+    {
+        name: 'who-am-i',
+        description: 'Informations sur le bot.',
+    },
+];
+
+// --- Fonction de démarrage HTTP (Pour Render 24/7) ---
+// Démarrage d'un serveur HTTP minimal pour que Render ne mette pas le service en veille
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Discord Bot is running and maintained by UptimeRobot.');
+}).listen(PORT, () => {
+    // Cette console.log n'est pas nécessaire mais confirme que le serveur est lancé
+    console.log(`HTTP Server listening on port ${PORT}`);
 });
 
-// --- DÉFINITION DES COMMANDES SLASH ---
 
-const commands = [
-    // Commande /ip
-    new SlashCommandBuilder()
-        .setName('ip')
-        .setDescription("Affiche l'adresse IP et la version du serveur Horizon SMP."),
-
-    // Commande /who-am-i
-    new SlashCommandBuilder()
-        .setName('who-am-i')
-        .setDescription("Fournit des informations sur le rôle du bot."),
-
-    // Commande /server-statut
-    new SlashCommandBuilder()
-        .setName('server-statut')
-        .setDescription("Vérifie l'état actuel (en ligne/hors ligne) du serveur Horizon SMP."),
-].map(command => command.toJSON());
-
-// --- GESTION DES ÉVÉNEMENTS DU BOT ---
-
-// Événement : Le bot est prêt
-client.once('ready', async () => {
+// --- Événement de connexion du bot Discord ---
+client.on('ready', async () => {
     console.log(`✅ Le bot est prêt ! Connecté en tant que ${client.user.tag}`);
 
+    // Enregistrement des commandes slash
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+
     try {
-        // Enregistrement des commandes
-        let applicationCommands;
+        console.log('Enregistrement global des commandes (peut prendre du temps)...');
 
-        if (GUILD_ID) {
-            // Enregistrement spécifique à un serveur (rapide pour les tests)
-            const guild = client.guilds.cache.get(GUILD_ID);
-            if (guild) {
-                applicationCommands = guild.commands;
-                console.log(`Enregistrement des commandes sur le serveur : ${guild.name}`);
-            }
-        } else {
-            // Enregistrement global (peut prendre jusqu'à 1 heure)
-            applicationCommands = client.application?.commands;
-            console.log("Enregistrement global des commandes (peut prendre du temps)...");
-        }
+        await rest.put(
+            Routes.applicationCommands(client.user.id),
+            { body: commands },
+        );
 
-        if (applicationCommands) {
-            await applicationCommands.set(commands);
-            console.log(`Commandes slash enregistrées avec succès (${commands.length}).`);
-        }
-
+        console.log('Commandes slash enregistrées avec succès (3).');
     } catch (error) {
-        console.error("Erreur lors de l'enregistrement des commandes :", error);
+        console.error('Erreur lors de l\'enregistrement des commandes :', error);
     }
 });
 
-
-// Événement : Gestion des interactions (Commandes Slash)
+// --- Gestion des interactions (commandes slash) ---
 client.on('interactionCreate', async interaction => {
-    if (!interaction.isCommand()) return;
+    if (!interaction.isChatInputCommand()) return;
 
     const { commandName } = interaction;
 
     switch (commandName) {
-        // --- /ip : Affichage de l'IP et de la Version ---
-        case 'ip':
-            const ipEmbed = new EmbedBuilder()
-                .setColor('#2ecc71') // Vert
-                .setTitle("🌐 Adresse et Version du Serveur")
-                .setDescription(`Rejoignez **Horizon SMP** !`)
-                .addFields(
-                    { name: 'Adresse IP', value: `\`${MINECRAFT_IP}\``, inline: true },
-                    { name: 'Version Recommandée', value: `\`${MINECRAFT_VERSION}\``, inline: true }
-                )
-                .setFooter({ text: "Bon jeu sur Horizon SMP !" });
-
-            await interaction.reply({ embeds: [ipEmbed] });
-            break;
-
-        // --- /who-am-i : Description du Bot ---
         case 'who-am-i':
-            const whoAmIEmbed = new EmbedBuilder()
-                .setColor('#3498db') // Bleu
-                .setTitle("🤖 Qui suis-je ?")
-                .setDescription(
-                    "Je suis le bot **Horizon Helper**, un assistant dévoué au serveur Minecraft Horizon SMP. " +
-                    "Mon but est de fournir rapidement des informations essentielles sur le serveur, telles que son statut, " +
-                    "le nombre de joueurs en ligne et l'adresse de connexion."
-                )
-                .setThumbnail(client.user.displayAvatarURL())
-                .addFields(
-                    { name: 'Commandes Utiles', value: '`/server-statut`, `/ip`', inline: false }
-                );
-
-            await interaction.reply({ embeds: [whoAmIEmbed] });
+            await handleWhoAmI(interaction);
             break;
 
-        // --- /server-statut : Vérification de l'État du Serveur ---
+        case 'ip':
+            await handleIP(interaction);
+            break;
+
         case 'server-statut':
-            // Réponse immédiate pour indiquer que la vérification est en cours
-            await interaction.deferReply();
-
-            try {
-                // Interrogation du serveur Minecraft
-                const response = await status(MINECRAFT_IP, MINECRAFT_PORT, { timeout: 5000 });
-
-                // Extraction des données
-                const playerCount = response.players.online;
-                const maxPlayers = response.players.max;
-                const motdClean = response.motd.clean.join('\n');
-                const protocolVersion = response.version.name;
-
-                // Construction de l'embed pour le statut EN LIGNE
-                const onlineEmbed = new EmbedBuilder()
-                    .setColor('#00ff00') // Vert pour en ligne
-                    .setTitle(`🟢 Horizon SMP est EN LIGNE !`)
-                    .setDescription(`**${playerCount}** joueur(s) sont connectés actuellement.`)
-                    .addFields(
-                        { name: 'Joueurs', value: `${playerCount} / ${maxPlayers}`, inline: true },
-                        { name: 'Version', value: `${protocolVersion}`, inline: true },
-                        { name: 'Message du Jour (MOTD)', value: motdClean, inline: false }
-                    )
-                    .setTimestamp();
-
-                await interaction.editReply({ embeds: [onlineEmbed] });
-
-            } catch (error) {
-                // Le serveur n'a pas répondu ou est hors ligne
-                console.error(`Erreur de connexion au serveur Minecraft: ${error.message}`);
-
-                const offlineEmbed = new EmbedBuilder()
-                    .setColor('#ff0000') // Rouge pour hors ligne
-                    .setTitle('🔴 Horizon SMP est HORS LIGNE')
-                    .setDescription(
-                        "Impossible d'obtenir le statut. Le serveur est probablement éteint ou en cours de redémarrage. " +
-                        "Veuillez réessayer plus tard ou contacter un administrateur."
-                    )
-                    .setTimestamp();
-
-                await interaction.editReply({ embeds: [offlineEmbed] });
-            }
+            await handleServerStatut(interaction);
             break;
     }
 });
 
+// --- Commandes ---
+
+async function handleWhoAmI(interaction) {
+    const embed = new EmbedBuilder()
+        .setColor(0x0099FF)
+        .setTitle('🤖 Qui suis-je ?')
+        .setDescription('Je suis Horizon Bot, conçu pour vous apporter des informations en temps réel sur le serveur Minecraft Horizon SMP !')
+        .setThumbnail(client.user.displayAvatarURL())
+        .addFields(
+            { name: 'Mon rôle', value: 'Faciliter l\'accès aux statistiques et à l\'IP du serveur.' }
+        )
+        .setFooter({ text: 'Bot par la communauté Horizon SMP' });
+
+    await interaction.reply({ embeds: [embed] });
+}
+
+async function handleIP(interaction) {
+    const embed = new EmbedBuilder()
+        .setColor(0x00FF00)
+        .setTitle('🌐 Adresse du Serveur Horizon SMP')
+        .setDescription('Voici les informations de connexion pour rejoindre l\'aventure !')
+        .addFields(
+            { name: 'Adresse IP', value: `\`${SERVER_IP}\``, inline: true },
+            { name: 'Version', value: `\`${SERVER_VERSION}\``, inline: true }
+        )
+        .setFooter({ text: 'Bon jeu sur Horizon SMP !' });
+
+    await interaction.reply({ embeds: [embed] });
+}
+
+async function handleServerStatut(interaction) {
+    await interaction.deferReply(); // Répondre immédiatement pour ne pas dépasser le délai
+
+    try {
+        const response = await util.status(SERVER_IP, 25565, { timeout: 5000 });
+
+        // Correction du bug: S'assurer que le MOTD est une chaîne de caractères
+        const motd = Array.isArray(response.motd.clean)
+            ? response.motd.clean.join('\n') // Si c'est un tableau de lignes, on les joint
+            : response.motd.clean; // Sinon, on prend la chaîne directement
+
+        const embed = new EmbedBuilder()
+            .setColor(0x00CCFF)
+            .setTitle(`✅ Horizon SMP est EN LIGNE !`)
+            .setFields([
+                { name: 'Joueurs Actuels', value: `${response.players.online} / ${response.players.max}`, inline: true },
+                { name: 'Latence (Ping)', value: `${response.roundTripLatency}ms`, inline: true },
+                { name: 'Version Prévue', value: response.version.name, inline: false },
+                { name: 'MOTD', value: `\`\`\`${motd.trim()}\`\`\``, inline: false },
+            ])
+            .setTimestamp()
+            .setFooter({ text: `Statut mis à jour à` });
+
+        await interaction.editReply({ embeds: [embed] });
+
+    } catch (error) {
+        console.error('Erreur de connexion au serveur Minecraft:', error);
+
+        let errorMessage = "Impossible de contacter le serveur. Il est probablement **stoppé** ou **en maintenance**.";
+
+        if (error.message.includes("Timed out")) {
+            errorMessage = "Le serveur n'a pas répondu à temps. Il est peut-être très chargé ou temporairement hors ligne.";
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor(0xFF0000)
+            .setTitle(`❌ Horizon SMP est HORS LIGNE`)
+            .setDescription(errorMessage)
+            .addFields(
+                { name: 'Dernière IP Tentée', value: SERVER_IP, inline: true }
+            )
+            .setTimestamp()
+            .setFooter({ text: 'Veuillez patienter et réessayer plus tard.' });
+
+        await interaction.editReply({ embeds: [embed] });
+    }
+}
+
 // Connexion du bot à Discord
-client.login(DISCORD_TOKEN).catch(err => {
-    console.error("Échec de la connexion. Vérifiez si votre DISCORD_TOKEN est correct :", err.message);
-});
+client.login(process.env.DISCORD_TOKEN);
