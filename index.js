@@ -12,7 +12,7 @@ const SERVER_IP = 'horizonsmp.progamer.me';
 const SERVER_VERSION = '1.21.10';
 
 // Configuration du client Discord
-// Ajout de l'intention MessageContent pour pouvoir lire le message de l'utilisateur
+// L'intention MessageContent est OBLIGATOIRE pour la commande !cadre
 const client = new Client({ 
     intents: [
         GatewayIntentBits.Guilds,
@@ -20,7 +20,7 @@ const client = new Client({
     ] 
 });
 
-// Définition des commandes slash
+// Définition des commandes slash (commande /cadre supprimée)
 const commands = [
     {
         name: 'help',
@@ -37,10 +37,6 @@ const commands = [
     {
         name: 'who-am-i',
         description: 'Informations sur le bot.',
-    },
-    {
-        name: 'cadre',
-        description: 'Transforme votre prochain message en un cadre de code stylisé.',
     },
 ];
 
@@ -70,13 +66,13 @@ client.on('ready', async () => {
             { body: commands },
         );
 
-        console.log('Commandes slash enregistrées avec succès (5).');
+        console.log('Commandes slash enregistrées avec succès (4).');
     } catch (error) {
         console.error('Erreur lors de l\'enregistrement des commandes :', error);
     }
 });
 
-// --- Gestion des interactions (commandes slash) ---
+// --- Gestion des interactions (commandes slash restantes) ---
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
@@ -99,13 +95,53 @@ client.on('interactionCreate', async interaction => {
             await handleServerStatut(interaction);
             break;
         
-        case 'cadre':
-            await handleCadre(interaction);
-            break;
+        // Commande /cadre retirée
     }
 });
 
-// --- Commandes ---
+
+// --- GESTION DES COMMANDES PAR PREFIXE (NEW!) ---
+client.on('messageCreate', async message => {
+    // Ignorer les messages des bots pour éviter les boucles infinies
+    if (message.author.bot) return;
+
+    const prefix = '!';
+    const commandBody = message.content.trim();
+
+    // Vérifier si le message commence par !cadre
+    if (commandBody.toLowerCase().startsWith(`${prefix}cadre`)) {
+        
+        // Extraire le message à encadrer (tout ce qui vient après "!cadre")
+        const contentToFrame = commandBody.slice(prefix.length + 'cadre'.length).trim();
+        
+        if (!contentToFrame) {
+            // Répondre si l'utilisateur n'a rien mis après !cadre
+            return message.reply({ content: "Veuillez fournir le message à encadrer après `!cadre` !", allowedMentions: { repliedUser: true }});
+        }
+
+        try {
+            // Créer le Cadre (Embed) qui conserve le Markdown
+            const embed = new EmbedBuilder()
+                .setColor(0x3498DB) // Bleu vif pour le cadre
+                .setDescription(contentToFrame) // Le contenu (gras, italique, etc. conservés)
+                .setFooter({ text: `Encadré demandé par ${message.author.tag}` })
+                .setTimestamp();
+
+            // Supprimer le message de commande original pour nettoyer le chat
+            await message.delete(); 
+
+            // Envoyer le message encadré (Embed)
+            await message.channel.send({ embeds: [embed] });
+
+        } catch (error) {
+            console.error("Erreur lors de l'exécution de !cadre:", error);
+            message.channel.send(`Une erreur est survenue lors de l'encadrement du message. Contactez un admin.`).catch(() => {});
+        }
+    }
+});
+
+// --- Commandes Slash ---
+// ... (handleHelp, handleWhoAmI, handleIP, handleServerStatut restent inchangées)
 
 async function handleHelp(interaction) {
     const embed = new EmbedBuilder()
@@ -114,11 +150,11 @@ async function handleHelp(interaction) {
         .setDescription('Je suis là pour vous donner des informations rapides sur le serveur Horizon SMP !')
         .setThumbnail(client.user.displayAvatarURL())
         .addFields(
+            { name: '!cadre [message]', value: '**NOUVEAU !** Encadre votre message dans un bloc stylé (Embed).', inline: false },
             { name: '/help', value: 'Affiche cette liste de commandes.', inline: false },
             { name: '/server-statut', value: 'Vérifie en temps réel si le serveur Minecraft est en ligne, le nombre de joueurs, la version et le MOTD.', inline: false },
             { name: '/ip', value: 'Affiche l\'adresse IP et la version requise pour rejoindre le serveur.', inline: false },
-            { name: '/who-am-i', value: 'Affiche les informations de base sur ce bot.', inline: false },
-            { name: '/cadre', value: 'Transforme votre prochain message en un cadre de code stylisé (conserve le Markdown).', inline: false }
+            { name: '/who-am-i', value: 'Affiche les informations de base sur ce bot.', inline: false }
         )
         .setFooter({ text: 'Pour toute autre question, contactez un administrateur.' });
 
@@ -199,39 +235,6 @@ async function handleServerStatut(interaction) {
             .setFooter({ text: 'Veuillez patienter et réessayer plus tard.' });
 
         await interaction.editReply({ embeds: [embed] });
-    }
-}
-
-async function handleCadre(interaction) {
-    // 1. Répondre à l'interaction pour indiquer que le bot attend le message
-    await interaction.reply({ content: `**Cadre activé !** Veuillez envoyer le message que vous voulez encadrer.`, ephemeral: true });
-
-    // Filtre : s'assure que seul le message de l'utilisateur qui a fait la commande est collecté
-    const filter = m => m.author.id === interaction.user.id;
-
-    try {
-        // 2. Attendre le prochain message de l'utilisateur pendant 60 secondes (60000 ms)
-        const collected = await interaction.channel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
-
-        // Le message collecté est le premier élément de la collection
-        const userMessage = collected.first();
-        
-        // 3. Créer un Embed stylisé avec le contenu du message
-        const embed = new EmbedBuilder()
-            .setColor(0x3498DB) // Une belle couleur bleue
-            .setDescription(userMessage.content) // Le contenu du message avec son Markdown
-            .setFooter({ text: `Encadré demandé par ${userMessage.author.tag}` })
-            .setTimestamp();
-        
-        // Supprimer le message original de l'utilisateur pour ne laisser que le cadre du bot
-        await userMessage.delete(); 
-
-        // 4. Envoyer le message encadré (Embed)
-        await interaction.channel.send({ embeds: [embed] });
-
-    } catch (error) {
-        // En cas d'expiration (timeout)
-        await interaction.followUp({ content: 'Temps écoulé (60 secondes). La commande `/cadre` a été annulée.', ephemeral: true });
     }
 }
 
